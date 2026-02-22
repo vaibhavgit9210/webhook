@@ -1,5 +1,5 @@
-// Set this after deploying the Cloudflare Worker, e.g. https://my-worker.my-subdomain.workers.dev
-const WORKER_BASE_URL = "https://REPLACE_ME.workers.dev";
+// Deployed Cloudflare Worker base URL.
+const WORKER_BASE_URL = "https://simple-webhook-endpoint.vaibhav-webhook.workers.dev";
 
 // Keep one fixed channel id so you always get one single endpoint URL.
 const CHANNEL_ID = "main";
