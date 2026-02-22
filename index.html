@@ -9,12 +9,12 @@
   <body>
     <main class="container">
       <h1>Simple Webhook Receiver</h1>
-      <p class="subtitle">Single endpoint. Shows latest payload only (no storage).</p>
+      <p class="subtitle">Single endpoint. Live only while this page is open. No storage.</p>
 
       <section class="card">
         <h2>Your Webhook URL</h2>
         <div class="endpoint-row">
-          <code id="endpoint">Set WORKER_BASE_URL in app.js</code>
+          <code id="endpoint"></code>
           <button id="copy-btn" type="button">Copy</button>
         </div>
         <p class="note">Send GET/POST/PUT/PATCH/DELETE requests to this URL from your workflow.</p>
@@ -22,10 +22,14 @@
 
       <section class="card">
         <div class="latest-header">
-          <h2>Latest Payload</h2>
-          <span id="status" class="status">Polling...</span>
+          <h2>Live Requests</h2>
+          <span id="status" class="status">Connecting...</span>
         </div>
-        <pre id="payload">Waiting for webhook...</pre>
+
+        <div class="split">
+          <ul id="events" class="events"></ul>
+          <pre id="details">Waiting for webhook...</pre>
+        </div>
       </section>
     </main>
 

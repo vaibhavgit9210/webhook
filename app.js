@@ -1,16 +1,15 @@
-// Deployed Cloudflare Worker base URL.
 const WORKER_BASE_URL = "https://simple-webhook-endpoint.vaibhav-webhook.workers.dev";
-
-// Keep one fixed channel id so you always get one single endpoint URL.
 const CHANNEL_ID = "main";
 
 const endpointEl = document.getElementById("endpoint");
-const payloadEl = document.getElementById("payload");
-const statusEl = document.getElementById("status");
 const copyBtn = document.getElementById("copy-btn");
+const statusEl = document.getElementById("status");
+const eventsEl = document.getElementById("events");
+const detailsEl = document.getElementById("details");
 
 const endpointUrl = `${WORKER_BASE_URL}/hook/${CHANNEL_ID}`;
-const latestUrl = `${WORKER_BASE_URL}/latest/${CHANNEL_ID}`;
+const wsBase = WORKER_BASE_URL.replace("https://", "wss://").replace("http://", "ws://");
+const wsUrl = `${wsBase}/ws/${CHANNEL_ID}`;
 
 endpointEl.textContent = endpointUrl;
 
@@ -29,34 +28,70 @@ copyBtn.addEventListener("click", async () => {
   }
 });
 
-function pretty(value) {
-  return JSON.stringify(value, null, 2);
+let events = [];
+let selected = -1;
+
+function fmt(ts) {
+  return new Date(ts).toLocaleTimeString();
 }
 
-async function loadLatest() {
-  if (WORKER_BASE_URL.includes("REPLACE_ME")) {
-    statusEl.textContent = "Set WORKER_BASE_URL in app.js";
-    return;
-  }
+function render() {
+  eventsEl.innerHTML = "";
 
-  try {
-    const response = await fetch(latestUrl);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+  events.forEach((evt, idx) => {
+    const li = document.createElement("li");
+    li.className = `event-item${idx === selected ? " active" : ""}`;
+    li.innerHTML = `<span class="pill">${evt.method}</span><span class="meta">${fmt(evt.receivedAt)}</span>`;
+    li.addEventListener("click", () => {
+      selected = idx;
+      render();
+    });
+    eventsEl.appendChild(li);
+  });
 
-    const data = await response.json();
-    if (data.receivedAt) {
-      payloadEl.textContent = pretty(data);
-      statusEl.textContent = `Last checked: ${new Date().toLocaleTimeString()}`;
-    } else {
-      payloadEl.textContent = "Waiting for webhook...";
-      statusEl.textContent = "No payload yet";
-    }
-  } catch (error) {
-    statusEl.textContent = `Error: ${error.message}`;
+  if (selected >= 0 && events[selected]) {
+    detailsEl.textContent = JSON.stringify(events[selected], null, 2);
+  } else {
+    detailsEl.textContent = "Waiting for webhook...";
   }
 }
 
-loadLatest();
-setInterval(loadLatest, 2000);
+function connect() {
+  statusEl.textContent = "Connecting...";
+  const socket = new WebSocket(wsUrl);
+
+  socket.addEventListener("open", () => {
+    statusEl.textContent = "Live";
+  });
+
+  socket.addEventListener("message", (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.system) {
+        return;
+      }
+
+      events.unshift(data);
+      if (events.length > 50) {
+        events = events.slice(0, 50);
+      }
+      selected = 0;
+      render();
+    } catch {
+      // ignore malformed messages
+    }
+  });
+
+  socket.addEventListener("close", () => {
+    statusEl.textContent = "Disconnected. Retrying...";
+    setTimeout(connect, 1200);
+  });
+
+  socket.addEventListener("error", () => {
+    statusEl.textContent = "Connection error";
+    socket.close();
+  });
+}
+
+render();
+connect();

@@ -1,53 +1,34 @@
 # Simple Webhook Receiver (GitHub Pages + Cloudflare Worker)
 
 This is a minimal webhook.site-like setup:
-- Frontend: static website (host on GitHub Pages)
-- Backend: Cloudflare Worker endpoint (no DB)
-- Storage: keeps only latest payload in-memory per channel
+- Frontend: static website on GitHub Pages
+- Backend: Cloudflare Worker endpoint + Durable Object for live streaming
+- Storage: no persistence (live-only while page is open)
 
-## Important constraint
-GitHub Pages alone cannot receive webhooks, because it is static hosting only.
-You need a real HTTP endpoint. Cloudflare Worker is the lightest option.
+## Live behavior
 
-## 1) Deploy Worker
+- Webhook endpoint always returns `200` JSON ack.
+- If your page is open, incoming requests appear live in the UI.
+- If page is closed, events are dropped (not stored).
 
-1. Install Wrangler:
-   - `npm i -g wrangler`
-2. Login:
-   - `wrangler login`
-3. Create `wrangler.toml`:
+## Deployed endpoints
 
-```toml
-name = "simple-webhook-endpoint"
-main = "worker.js"
-compatibility_date = "2026-02-22"
+- Webhook URL: `https://simple-webhook-endpoint.vaibhav-webhook.workers.dev/hook/main`
+- Live stream socket (used by UI): `wss://simple-webhook-endpoint.vaibhav-webhook.workers.dev/ws/main`
+
+## Local files
+
+- `index.html`, `styles.css`, `app.js`: GitHub Pages frontend
+- `worker.js`: Cloudflare Worker + Durable Object room
+- `wrangler.toml`: Worker config
+
+## Deploy updates
+
+```bash
+npx wrangler deploy
 ```
 
-4. Deploy:
-   - `wrangler deploy`
-5. Copy the Worker URL (looks like `https://simple-webhook-endpoint.<subdomain>.workers.dev`)
+## Important constraint
 
-## 2) Configure frontend
-
-1. Open `app.js`
-2. Set:
-   - `WORKER_BASE_URL = "https://...workers.dev"`
-
-## 3) Publish frontend to GitHub Pages
-
-1. Push files to your GitHub repo.
-2. In GitHub repo settings, enable Pages from your branch (for example `main` root).
-3. Open your GitHub Pages URL.
-
-## Webhook URL
-
-Your webhook URL will be:
-- `https://<worker>.workers.dev/hook/main`
-
-Latest payload API used by page:
-- `https://<worker>.workers.dev/latest/main`
-
-## Notes
-
-- No persistent storage: restart/redeploy may clear data.
-- This is intentionally simple and cheap for testing workflows.
+GitHub Pages alone cannot receive webhook `POST` requests because it is static hosting only.
+A real HTTP runtime (Worker) is required for webhook endpoints.

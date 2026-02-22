@@ -1,9 +1,7 @@
 /**
- * Cloudflare Worker: minimal webhook endpoint + latest payload fetch.
- * No database, only in-memory latest payload per channel.
+ * Cloudflare Worker with Durable Object room for live webhook streaming.
+ * No persistence: payloads are only broadcast to currently connected clients.
  */
-
-const latestByChannel = new Map();
 
 function corsHeaders() {
   return {
@@ -40,14 +38,11 @@ async function parseBody(request) {
   }
 
   const text = await request.text();
-  if (!text) {
-    return null;
-  }
-  return text;
+  return text || null;
 }
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const url = new URL(request.url);
     const { pathname } = url;
 
@@ -55,9 +50,19 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders() });
     }
 
+    if (pathname.startsWith("/ws/")) {
+      const channel = pathname.split("/")[2] || "main";
+      const id = env.WEBHOOK_ROOM.idFromName(channel);
+      const stub = env.WEBHOOK_ROOM.get(id);
+      return stub.fetch("https://room/connect", {
+        headers: { Upgrade: request.headers.get("Upgrade") || "" }
+      });
+    }
+
     if (pathname.startsWith("/hook/")) {
       const channel = pathname.split("/")[2] || "main";
-      const body = await parseBody(request);
+      const id = env.WEBHOOK_ROOM.idFromName(channel);
+      const stub = env.WEBHOOK_ROOM.get(id);
 
       const payload = {
         channel,
@@ -66,20 +71,64 @@ export default {
         receivedAt: new Date().toISOString(),
         query: Object.fromEntries(url.searchParams.entries()),
         headers: Object.fromEntries(request.headers.entries()),
-        body
+        body: await parseBody(request)
       };
 
-      latestByChannel.set(channel, payload);
+      await stub.fetch("https://room/publish", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload)
+      });
 
       return json({ ok: true, channel, receivedAt: payload.receivedAt });
-    }
-
-    if (pathname.startsWith("/latest/")) {
-      const channel = pathname.split("/")[2] || "main";
-      const payload = latestByChannel.get(channel);
-      return json(payload || { channel, message: "No payload yet" });
     }
 
     return json({ error: "Not found" }, 404);
   }
 };
+
+export class WebhookRoom {
+  constructor(state) {
+    this.state = state;
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/connect") {
+      if (request.headers.get("Upgrade") !== "websocket") {
+        return new Response("Expected websocket", { status: 426 });
+      }
+
+      const pair = new WebSocketPair();
+      const client = pair[0];
+      const server = pair[1];
+
+      this.state.acceptWebSocket(server);
+      server.send(JSON.stringify({ system: true, message: "connected", at: new Date().toISOString() }));
+
+      return new Response(null, { status: 101, webSocket: client });
+    }
+
+    if (url.pathname === "/publish") {
+      const payload = await request.json();
+      const message = JSON.stringify(payload);
+
+      for (const ws of this.state.getWebSockets()) {
+        try {
+          ws.send(message);
+        } catch {
+          try {
+            ws.close(1011, "send failed");
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      return json({ ok: true });
+    }
+
+    return new Response("Not found", { status: 404 });
+  }
+}

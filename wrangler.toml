@@ -1,3 +1,11 @@
 name = "simple-webhook-endpoint"
 main = "worker.js"
 compatibility_date = "2026-02-22"
+
+[[durable_objects.bindings]]
+name = "WEBHOOK_ROOM"
+class_name = "WebhookRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["WebhookRoom"]
