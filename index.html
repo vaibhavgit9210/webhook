@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simple Webhook Receiver</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Simple Webhook Receiver</h1>
+      <p class="subtitle">Single endpoint. Shows latest payload only (no storage).</p>
+
+      <section class="card">
+        <h2>Your Webhook URL</h2>
+        <div class="endpoint-row">
+          <code id="endpoint">Set WORKER_BASE_URL in app.js</code>
+          <button id="copy-btn" type="button">Copy</button>
+        </div>
+        <p class="note">Send GET/POST/PUT/PATCH/DELETE requests to this URL from your workflow.</p>
+      </section>
+
+      <section class="card">
+        <div class="latest-header">
+          <h2>Latest Payload</h2>
+          <span id="status" class="status">Polling...</span>
+        </div>
+        <pre id="payload">Waiting for webhook...</pre>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
